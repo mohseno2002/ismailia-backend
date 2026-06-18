@@ -5,7 +5,7 @@
 import {
   resolveQ, normalDepth, froude, backwaterProfile
 } from './hydraulics.js';
-import { INDEX_HTML } from './frontend.js';
+import { INDEX_HTML, APP_JS } from './frontend.js';
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -48,7 +48,7 @@ export default {
           return json(results);
         }
 
-        // GET /api/readings?date=YYYY-MM-DD
+        // GET /api/readings?date=YYYY-MM-DD — قراءات يوم + التصرف المحسوب
         if (path === '/api/readings' && method === 'GET') {
           const date = url.searchParams.get('date') || new Date().toISOString().slice(0, 10);
           const { results: nodes } = await env.DB.prepare(
@@ -93,7 +93,7 @@ export default {
           return json({ ok: true });
         }
 
-        // GET /api/history?node_id=&days=30
+        // GET /api/history?node_id=&days=30 — سلسلة زمنية لعقدة
         if (path === '/api/history' && method === 'GET') {
           const node_id = url.searchParams.get('node_id');
           const days = Math.min(Number(url.searchParams.get('days') || 30), 365);
@@ -105,7 +105,7 @@ export default {
           return json(results.reverse());
         }
 
-        // GET /api/profile?node_id=&date=
+        // GET /api/profile?node_id=&date= — منحنى backwater (مخزّن)
         if (path === '/api/profile' && method === 'GET') {
           const node_id = url.searchParams.get('node_id');
           const date = url.searchParams.get('date') || new Date().toISOString().slice(0, 10);
@@ -130,7 +130,7 @@ export default {
           return json(payload);
         }
 
-        // GET /api/balance?date=
+        // GET /api/balance?date= — ميزان كتلي مبسّط للترعة
         if (path === '/api/balance' && method === 'GET') {
           const date = url.searchParams.get('date') || new Date().toISOString().slice(0, 10);
           const { results: nodes } = await env.DB.prepare(
@@ -163,6 +163,12 @@ export default {
         return json({ error: 'مسار API غير معروف' }, 404);
       }
 
+      // ---------- app.js ----------
+      if (path === '/app.js') {
+        return new Response(APP_JS, {
+          headers: { 'content-type': 'application/javascript; charset=utf-8' },
+        });
+      }
       // ---------- الواجهة ----------
       if (path === '/' || path === '/index.html') {
         return new Response(INDEX_HTML, {
