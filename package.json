@@ -1,0 +1,18 @@
+{
+  "name": "ismailia-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "التوأم الرقمي لترعة الإسماعيلية — باك إند على Cloudflare Workers + D1",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create ismailia-db",
+    "db:schema": "wrangler d1 execute ismailia-db --remote --file=./schema/schema.sql",
+    "db:seed": "wrangler d1 execute ismailia-db --remote --file=./schema/seed.sql",
+    "db:init": "npm run db:schema && npm run db:seed",
+    "db:local": "wrangler d1 execute ismailia-db --local --file=./schema/schema.sql && wrangler d1 execute ismailia-db --local --file=./schema/seed.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}
