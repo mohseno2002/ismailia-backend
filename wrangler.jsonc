@@ -2,13 +2,11 @@
   "name": "ismailia-backend",
   "main": "src/worker.js",
   "compatibility_date": "2025-01-01",
-  // قاعدة بيانات D1 — Cloudflare ستنشئها وتربطها تلقائيًا عند النشر
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "ismailia-db",
-      "database_id": "placeholder-to-be-filled-by-cloudflare",
-      // ملفات الإنشاء والبيانات الأولية تُطبّق تلقائيًا
+      "database_id": "8e18a543-e3fa-4b84-8b98-8bea410aa9ef",
       "migrations_dir": "migrations"
     }
   ]
