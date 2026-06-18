@@ -93,6 +93,75 @@ export default {
           return json({ ok: true });
         }
 
+        // GET /api/readings/all?filter=all|today|week|month&search= — كل القراءات
+        if (path === '/api/readings/all' && method === 'GET') {
+          const filter = url.searchParams.get('filter') || 'all';
+          const search = (url.searchParams.get('search') || '').trim();
+          let where = [], binds = [];
+          const today = new Date().toISOString().slice(0, 10);
+          if (filter === 'today') { where.push('r.reading_date = ?'); binds.push(today); }
+          else if (filter === 'week') {
+            const w = new Date(Date.now() - 6048e5).toISOString().slice(0, 10);
+            where.push('r.reading_date >= ?'); binds.push(w);
+          } else if (filter === 'month') {
+            const m = new Date(Date.now() - 2592e6).toISOString().slice(0, 10);
+            where.push('r.reading_date >= ?'); binds.push(m);
+          }
+          if (search) {
+            where.push('(n.name_ar LIKE ? OR r.reading_date LIKE ? OR CAST(n.km AS TEXT) LIKE ?)');
+            const s = '%' + search + '%'; binds.push(s, s, s);
+          }
+          const wsql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+          const { results } = await env.DB.prepare(
+            `SELECT r.id, r.node_id, r.reading_date, r.wl_up, r.wl_dn, r.gates_open, r.q_manual,
+                    n.name_ar, n.km
+             FROM readings r JOIN nodes n ON n.id = r.node_id
+             ${wsql} ORDER BY r.reading_date DESC, n.km ASC LIMIT 2000`
+          ).bind(...binds).all();
+          // ملخص
+          const total = await env.DB.prepare('SELECT COUNT(*) c FROM readings').first();
+          const last = await env.DB.prepare(
+            `SELECT r.reading_date, n.name_ar FROM readings r JOIN nodes n ON n.id=r.node_id
+             ORDER BY r.reading_date DESC LIMIT 1`
+          ).first();
+          return json({ rows: results, total: total?.c ?? 0,
+                        last_name: last?.name_ar ?? null, last_date: last?.reading_date ?? null });
+        }
+
+        // POST /api/readings/bulk — استيراد جماعي [{node_id,reading_date,wl_up,wl_dn,gates_open,q_manual}]
+        if (path === '/api/readings/bulk' && method === 'POST') {
+          const body = await request.json();
+          const rows = Array.isArray(body) ? body : (body.rows || []);
+          if (!rows.length) return json({ error: 'لا توجد صفوف' }, 400);
+          const stmt = env.DB.prepare(
+            `INSERT INTO readings (node_id, reading_date, wl_up, wl_dn, gates_open, q_manual)
+             VALUES (?,?,?,?,?,?)
+             ON CONFLICT(node_id, reading_date) DO UPDATE SET
+               wl_up=excluded.wl_up, wl_dn=excluded.wl_dn,
+               gates_open=excluded.gates_open, q_manual=excluded.q_manual`
+          );
+          let saved = 0;
+          const batch = [];
+          for (const r of rows) {
+            if (!r.node_id || !r.reading_date) continue;
+            batch.push(stmt.bind(r.node_id, r.reading_date, r.wl_up ?? null, r.wl_dn ?? null,
+                                 r.gates_open ?? null, r.q_manual ?? null));
+            saved++;
+          }
+          if (batch.length) await env.DB.batch(batch);
+          await audit(env, 'bulk_import', null, { count: saved });
+          return json({ ok: true, saved });
+        }
+
+        // DELETE /api/readings?id=  — حذف قراءة واحدة
+        if (path === '/api/readings' && method === 'DELETE') {
+          const id = url.searchParams.get('id');
+          if (!id) return json({ error: 'id مطلوب' }, 400);
+          await env.DB.prepare('DELETE FROM readings WHERE id = ?').bind(id).run();
+          await audit(env, 'delete_reading', null, { id });
+          return json({ ok: true });
+        }
+
         // GET /api/history?node_id=&days=30 — سلسلة زمنية لعقدة
         if (path === '/api/history' && method === 'GET') {
           const node_id = url.searchParams.get('node_id');
